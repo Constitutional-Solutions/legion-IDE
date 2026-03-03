@@ -1,0 +1,28 @@
+{
+  "name": "legion-ide",
+  "version": "1.0.0",
+  "description": "Radix & Philang coding environment",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Constitutional-Solutions/legion-IDE.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "CC0-1.0",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Constitutional-Solutions/legion-IDE/issues"
+  },
+  "homepage": "https://github.com/Constitutional-Solutions/legion-IDE#readme",
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
