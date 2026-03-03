@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vortex IDE — Resonance Map</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: monospace;
+      color: #ccc;
+    }
+    h1 { font-size: 1rem; letter-spacing: 0.3em; margin-bottom: 1rem; color: #888; }
+    canvas { border: 1px solid #1a1a2e; border-radius: 4px; }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1rem;
+      font-size: 0.85rem;
+    }
+    label { color: #888; }
+    input[type="range"] { width: 200px; accent-color: #c8a84b; }
+    #coherenceVal { min-width: 3ch; color: #c8a84b; }
+  </style>
+</head>
+<body>
+  <h1>VORTEX CANVAS · PLV RESONANCE MAP</h1>
+  <canvas id="vortex" width="600" height="600"></canvas>
+  <div class="controls">
+    <label for="coherenceSlider">Coherence</label>
+    <input type="range" id="coherenceSlider" min="0" max="1" step="0.01" value="0.5" />
+    <span id="coherenceVal">0.50</span>
+  </div>
+
+  <script>
+    /**
+     * Vortex Visualizer
+     *
+     * Particle speed and colour are bound to the `coherence` variable:
+     *   low  coherence (≈ 0.1) → blue,  erratic, dispersed particles
+     *   high coherence (≈ 0.9) → gold,  slow,    φ-spiral formation
+     *
+     * The φ-spiral is a logarithmic spiral: r = a · e^(b·θ)
+     * where b = ln(φ) / (π/2) so each quarter turn scales radius by φ.
+     */
+
+    const canvas = document.getElementById('vortex');
+    const ctx = canvas.getContext('2d');
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const CX = W / 2;
+    const CY = H / 2;
+
+    const PHI = 1.61803398875;
+    const LOG_PHI = Math.log(PHI);
+    // b chosen so r doubles by a φ-rotation (π/2 rad per scale factor of φ)
+    const SPIRAL_B = LOG_PHI / (Math.PI / 2);
+    const PARTICLE_COUNT = 300;
+
+    let coherence = 0.5;
+
+    // ── Particle definition ──────────────────────────────────────────────────
+    function createParticle(index) {
+      const angle = (index / PARTICLE_COUNT) * Math.PI * 2 * PHI;
+      return {
+        angle,
+        radius: 10 + Math.random() * 240,
+        speed: Math.random() * 0.02 + 0.005,
+        size: Math.random() * 2 + 1,
+        // random phase offset for erratic motion at low coherence
+        jitter: (Math.random() - 0.5) * 2,
+      };
+    }
+
+    const particles = Array.from({ length: PARTICLE_COUNT }, (_, i) => createParticle(i));
+
+    // ── Colour interpolation ─────────────────────────────────────────────────
+    // low coherence → blue (#3a6fd8), high coherence → gold (#c8a84b)
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function particleColor(c) {
+      const r = Math.round(lerp(58,  200, c));
+      const g = Math.round(lerp(111, 168, c));
+      const b = Math.round(lerp(216, 75,  c));
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // ── Spiral target position ───────────────────────────────────────────────
+    // Maps a particle index to its φ-spiral (x, y) anchor.
+    function spiralTarget(index) {
+      const theta = (index / PARTICLE_COUNT) * Math.PI * 10; // spread over 5 turns
+      const a = 4; // initial spiral arm scale
+      const r = a * Math.exp(SPIRAL_B * theta);
+      return {
+        x: CX + r * Math.cos(theta),
+        y: CY + r * Math.sin(theta),
+      };
+    }
+
+    // ── Animation loop ───────────────────────────────────────────────────────
+    function draw() {
+      // Fade trail
+      ctx.fillStyle = 'rgba(10, 10, 15, 0.18)';
+      ctx.fillRect(0, 0, W, H);
+
+      const color = particleColor(coherence);
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+
+        // At high coherence, attract towards φ-spiral; at low, orbit freely.
+        const target = spiralTarget(i);
+        const orbitX = CX + p.radius * Math.cos(p.angle);
+        const orbitY = CY + p.radius * Math.sin(p.angle);
+
+        const px = lerp(orbitX, target.x, coherence);
+        const py = lerp(orbitY, target.y, coherence);
+
+        // Speed: fast & jittery at low coherence, slow & smooth at high
+        const baseSpeed = lerp(0.06, 0.004, coherence);
+        const jitterMag = lerp(0.04, 0, coherence);
+        p.angle += baseSpeed + jitterMag * p.jitter * Math.random();
+        p.radius += lerp(p.jitter * 0.5, 0, coherence);
+        // Keep radius in [10, 260]
+        if (p.radius < 10 || p.radius > 260) p.jitter *= -1;
+
+        ctx.beginPath();
+        ctx.arc(px, py, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = lerp(0.4, 0.9, coherence);
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(draw);
+    }
+
+    // ── Controls ─────────────────────────────────────────────────────────────
+    const slider = document.getElementById('coherenceSlider');
+    const valLabel = document.getElementById('coherenceVal');
+
+    slider.addEventListener('input', () => {
+      coherence = parseFloat(slider.value);
+      valLabel.textContent = coherence.toFixed(2);
+    });
+
+    draw();
+  </script>
+</body>
+</html>
